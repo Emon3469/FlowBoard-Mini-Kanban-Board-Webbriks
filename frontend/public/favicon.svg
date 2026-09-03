@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FlowBoard">
+  <defs>
+    <linearGradient id="flow" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16d9f5"/><stop offset=".54" stop-color="#1559ff"/><stop offset="1" stop-color="#7b16ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#10121b"/>
+  <path fill="url(#flow)" d="M12 13c15-9 39-7 43-5-2 12-9 19-21 24 13 4 19 11 20 23-14 3-34 0-43-5 5-11 12-17 22-20C23 27 16 21 12 13Z"/>
+</svg>
