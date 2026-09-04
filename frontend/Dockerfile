@@ -3,6 +3,10 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Set npm config to reduce permission issues
+RUN npm config set unsafe-perm true && \
+    npm config set optional false
+
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm ci
