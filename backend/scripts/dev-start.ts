@@ -67,37 +67,50 @@ async function main() {
   // Clean up any orphaned process
   await killProcessOnPort(PORT);
 
-  // Wait for port to be available
-  let retries = 5;
-  while (retries > 0) {
-    try {
-      const result = spawnSync('powershell.exe', [
-        '-NoProfile',
-        '-Command',
-        `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count`
-      ], { encoding: 'utf-8', stdio: 'pipe' });
-      
-      if (result.stdout?.trim() === '0') {
-        break; // Port is free
+  // The port-availability probe uses PowerShell, so it only runs on Windows.
+  // (killProcessOnPort already handles macOS/Linux via lsof above.) Gating this
+  // matters: on a non-Windows host powershell.exe does not exist, so spawnSync
+  // returns an error with no stdout — and the old unconditional gate below read
+  // that empty output as "port in use" and exited, so the dev server never
+  // started on Mac/Linux.
+  if (isWindows) {
+    // Wait for port to be available
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        const result = spawnSync('powershell.exe', [
+          '-NoProfile',
+          '-Command',
+          `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count`
+        ], { encoding: 'utf-8', stdio: 'pipe' });
+
+        if (result.stdout?.trim() === '0') {
+          break; // Port is free
+        }
+      } catch (e) {
+        break; // Error means port might be free, continue
       }
-    } catch (e) {
-      break; // Error means port might be free, continue
+
+      retries--;
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 300));
+      }
     }
 
-    retries--;
-    if (retries > 0) {
-      await new Promise(r => setTimeout(r, 300));
+    const portCheck = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      `(Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count`
+    ], { encoding: 'utf-8', stdio: 'pipe' });
+    // Only abort when PowerShell actually reported one or more listeners. A
+    // spawn error or empty output (a transient probe failure) must NOT be read
+    // as "port in use" — otherwise a hiccup in the probe needlessly blocks
+    // startup.
+    const listenerCount = portCheck.error == null ? portCheck.stdout?.trim() : undefined;
+    if (listenerCount != null && listenerCount !== '' && listenerCount !== '0') {
+      console.error(`❌ Port ${PORT} is still in use. Stop the owning process and retry.`);
+      process.exit(1);
     }
-  }
-
-  const portCheck = spawnSync('powershell.exe', [
-    '-NoProfile',
-    '-Command',
-    `(Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count`
-  ], { encoding: 'utf-8', stdio: 'pipe' });
-  if (portCheck.stdout?.trim() !== '0') {
-    console.error(`❌ Port ${PORT} is still in use. Stop the owning process and retry.`);
-    process.exit(1);
   }
 
   console.log(`📍 Starting server on port ${PORT}...\n`);

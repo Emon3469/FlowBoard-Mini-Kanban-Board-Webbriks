@@ -39,22 +39,32 @@ function getColumnColor(name: string, position: number) {
 
 interface ColumnContainerProps {
   column: ApiColumn;
-  tasks: ApiTask[];
+  tasks: ApiTask[];                 // already in final display order
+  canEdit: boolean;
+  dragEnabled: boolean;             // task cards draggable (manual sort, no filters)
   onAddTask: (columnId: string, title: string, description?: string) => Promise<void>;
   onTaskClick: (task: ApiTask) => void;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
+  onMoveColumn: (columnId: string, dir: 'left' | 'right') => void;
   columnIndex: number;
+  isFirst: boolean;
+  isLast: boolean;
 }
 
 export function ColumnContainer({
   column,
   tasks,
+  canEdit,
+  dragEnabled,
   onAddTask,
   onTaskClick,
   onRenameColumn,
   onDeleteColumn,
+  onMoveColumn,
   columnIndex,
+  isFirst,
+  isLast,
 }: ColumnContainerProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -68,8 +78,7 @@ export function ColumnContainer({
     data: { type: 'column', column },
   });
 
-  const sortedTasks = [...tasks].sort((a, b) => a.position - b.position);
-  const taskIds = sortedTasks.map((t) => t.id);
+  const taskIds = tasks.map((t) => t.id);
   const colors = getColumnColor(column.name, columnIndex);
 
   const handleAddTask = async () => {
@@ -98,8 +107,7 @@ export function ColumnContainer({
       {/* Column Header */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-on-surface-variant text-[16px]">drag_indicator</span>
-          {isEditing ? (
+          {isEditing && canEdit ? (
             <input
               autoFocus
               value={editName}
@@ -109,66 +117,73 @@ export function ColumnContainer({
                 if (e.key === 'Enter') handleRename();
                 if (e.key === 'Escape') setIsEditing(false);
               }}
-              className="px-2 py-1 text-[13px] font-medium rounded border border-primary bg-surface text-on-surface focus:outline-none w-24"
+              className="px-2 py-1 text-[13px] font-medium rounded border border-primary bg-surface text-on-surface focus:outline-none w-32"
             />
           ) : (
             <div
-              className={`flex items-center gap-2 px-2 py-1 rounded ${colors.bg} ${colors.border} border shadow-sm cursor-pointer`}
+              className={`flex items-center gap-2 px-2 py-1 rounded ${colors.bg} ${colors.border} border shadow-sm ${canEdit ? 'cursor-pointer' : ''}`}
               onDoubleClick={() => {
+                if (!canEdit) return;
                 setEditName(column.name);
                 setIsEditing(true);
               }}
-              title="Double-click to rename"
+              title={canEdit ? 'Double-click to rename' : undefined}
             >
               <span className={`font-medium text-[13px] ${colors.text}`}>{column.name}</span>
             </div>
           )}
           <span className="font-medium text-[13px] text-on-surface-variant">{tasks.length}</span>
         </div>
-        <div className="flex items-center gap-1 text-on-surface-variant relative">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-0.5 hover:bg-surface-variant rounded"
-          >
-            <span className="material-symbols-outlined text-[18px]">more_horiz</span>
-          </button>
-          <button
-            onClick={() => setIsAddingTask(true)}
-            className="p-0.5 hover:bg-surface-variant rounded"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-          </button>
+        {canEdit && (
+          <div className="flex items-center gap-1 text-on-surface-variant relative">
+            <button onClick={() => setShowMenu(!showMenu)} className="p-0.5 hover:bg-surface-variant rounded">
+              <span className="material-symbols-outlined text-[18px]">more_horiz</span>
+            </button>
+            <button onClick={() => setIsAddingTask(true)} className="p-0.5 hover:bg-surface-variant rounded">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+            </button>
 
-          {/* Column Menu Dropdown */}
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-8 z-50 w-44 bg-surface border border-outline rounded-xl shadow-elevated py-1.5">
-                <button
-                  onClick={() => {
-                    setEditName(column.name);
-                    setIsEditing(true);
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-[12px] text-on-surface hover:bg-surface-variant flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[15px]">edit</span>
-                  Rename Column
-                </button>
-                <button
-                  onClick={() => {
-                    onDeleteColumn(column.id);
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-[12px] text-danger hover:bg-danger/10 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[15px]">delete</span>
-                  Delete Column
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+            {/* Column Menu Dropdown */}
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-8 z-50 w-44 bg-surface border border-outline rounded-xl shadow-elevated py-1.5">
+                  <button
+                    onClick={() => { setEditName(column.name); setIsEditing(true); setShowMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-[12px] text-on-surface hover:bg-surface-variant flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">edit</span>
+                    Rename Column
+                  </button>
+                  <button
+                    disabled={isFirst}
+                    onClick={() => { onMoveColumn(column.id, 'left'); setShowMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-[12px] text-on-surface hover:bg-surface-variant flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">chevron_left</span>
+                    Move Left
+                  </button>
+                  <button
+                    disabled={isLast}
+                    onClick={() => { onMoveColumn(column.id, 'right'); setShowMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-[12px] text-on-surface hover:bg-surface-variant flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+                    Move Right
+                  </button>
+                  <div className="my-1 border-t border-outline" />
+                  <button
+                    onClick={() => { onDeleteColumn(column.id); setShowMenu(false); }}
+                    className="w-full px-3 py-2 text-left text-[12px] text-danger hover:bg-danger/10 flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">delete</span>
+                    Delete Column
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Task List */}
@@ -180,8 +195,8 @@ export function ColumnContainer({
         )}
       >
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          {sortedTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+          {tasks.map((task) => (
+            <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} draggable={dragEnabled} />
           ))}
         </SortableContext>
 
@@ -194,7 +209,7 @@ export function ColumnContainer({
         )}
 
         {/* Inline Add Task */}
-        {isAddingTask && (
+        {isAddingTask && canEdit && (
           <div className="bg-surface border border-outline rounded-xl p-3">
             <input
               autoFocus
@@ -202,10 +217,7 @@ export function ColumnContainer({
               onChange={(e) => setNewTaskTitle(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddTask();
-                if (e.key === 'Escape') {
-                  setIsAddingTask(false);
-                  setNewTaskTitle('');
-                }
+                if (e.key === 'Escape') { setIsAddingTask(false); setNewTaskTitle(''); }
               }}
               placeholder="Task title..."
               className="w-full px-2 py-1.5 text-[13px] bg-transparent text-on-surface placeholder:text-on-surface-variant focus:outline-none"
@@ -219,10 +231,7 @@ export function ColumnContainer({
                 {addingLoading ? 'Adding...' : 'Add'}
               </button>
               <button
-                onClick={() => {
-                  setIsAddingTask(false);
-                  setNewTaskTitle('');
-                }}
+                onClick={() => { setIsAddingTask(false); setNewTaskTitle(''); }}
                 className="px-3 py-1.5 rounded-lg text-[12px] text-on-surface-variant hover:bg-surface-variant transition-colors"
               >
                 Cancel

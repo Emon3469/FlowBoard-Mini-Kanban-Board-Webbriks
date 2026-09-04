@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "tsx scripts/dev-start.ts",
     "dev:direct": "tsx watch src/server.ts",
-    "dev:clean": "powershell -Command \"Get-NetTCPConnection -LocalPort 4001 -State Listen -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; echo 'Port cleaned. Starting server...'; npm run dev:direct\"",
+    "dev:clean": "powershell -Command \"Get-NetTCPConnection -LocalPort 4000 -State Listen -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; echo 'Port cleaned. Starting server...'; npm run dev:direct\"",
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",

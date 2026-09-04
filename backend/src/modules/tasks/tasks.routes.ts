@@ -5,13 +5,44 @@ import { loadColumnBoardContext, loadTaskBoardContext } from '../../middleware/b
 import { validate } from '../../middleware/validate';
 import { routeParam, sendError } from '../../lib/http';
 import { emitBoardEvent } from '../../events/boardEvents';
+import { createNotification } from '../../lib/notify';
+import { runAutomationsForMove } from '../automations/automations.service';
 import { moveSchema, taskSchema } from './tasks.schemas';
 import { computePosition, INITIAL_GAP, rebalancedPositions } from './ordering';
 
 const router = Router();
-router.post('/columns/:columnId/tasks', authenticate, loadColumnBoardContext('columnId'), requireRole('EDITOR'), validate(taskSchema), async (req, res, next) => { try { const columnId = routeParam(req.params.columnId); const last = await prisma.task.findFirst({ where: { columnId }, orderBy: { position: 'desc' } }); res.status(201).json({ data: await prisma.task.create({ data: { columnId, title: req.body.title, description: req.body.description, position: (last?.position ?? 0) + INITIAL_GAP } }) }); } catch (error) { next(error); } });
-router.patch('/tasks/:id', authenticate, loadTaskBoardContext(), requireRole('EDITOR'), validate(taskSchema.partial()), async (req, res, next) => { try { res.json({ data: await prisma.task.update({ where: { id: routeParam(req.params.id) }, data: req.body }) }); } catch (error) { next(error); } });
-router.delete('/tasks/:id', authenticate, loadTaskBoardContext(), requireRole('EDITOR'), async (req, res, next) => { try { await prisma.task.delete({ where: { id: routeParam(req.params.id) } }); res.status(204).send(); } catch (error) { next(error); } });
+
+async function isBoardMember(boardId: string, userId: string) {
+  const member = await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } });
+  return Boolean(member);
+}
+
+router.post('/columns/:columnId/tasks', authenticate, loadColumnBoardContext('columnId'), requireRole('EDITOR'), validate(taskSchema), async (req, res, next) => { try {
+  const columnId = routeParam(req.params.columnId);
+  if (req.body.assigneeId && !(await isBoardMember(req.boardId!, req.body.assigneeId))) return sendError(res, 400, 'BAD_REQUEST', 'Assignee must be a member of this board.');
+  const last = await prisma.task.findFirst({ where: { columnId }, orderBy: { position: 'desc' } });
+  const created = await prisma.task.create({ data: { columnId, title: req.body.title, description: req.body.description, priority: req.body.priority, dueDate: req.body.dueDate ?? undefined, startDate: req.body.startDate ?? undefined, labels: req.body.labels ?? undefined, assigneeId: req.body.assigneeId ?? undefined, position: (last?.position ?? 0) + INITIAL_GAP } });
+  emitBoardEvent(req.boardId!, { type: 'task.created', payload: created });
+  if (created.assigneeId) await createNotification({ userId: created.assigneeId, type: 'task_assigned', title: 'A task was assigned to you', body: created.title, boardId: req.boardId!, taskId: created.id, actorId: req.user!.id });
+  res.status(201).json({ data: created });
+} catch (error) { next(error); } });
+
+router.patch('/tasks/:id', authenticate, loadTaskBoardContext(), requireRole('EDITOR'), validate(taskSchema.partial()), async (req, res, next) => { try {
+  const id = routeParam(req.params.id);
+  if (req.body.assigneeId && !(await isBoardMember(req.boardId!, req.body.assigneeId))) return sendError(res, 400, 'BAD_REQUEST', 'Assignee must be a member of this board.');
+  const updated = await prisma.task.update({ where: { id }, data: req.body });
+  emitBoardEvent(req.boardId!, { type: 'task.updated', payload: updated });
+  if (req.body.assigneeId) await createNotification({ userId: req.body.assigneeId, type: 'task_assigned', title: 'A task was assigned to you', body: updated.title, boardId: req.boardId!, taskId: updated.id, actorId: req.user!.id });
+  res.json({ data: updated });
+} catch (error) { next(error); } });
+
+router.delete('/tasks/:id', authenticate, loadTaskBoardContext(), requireRole('EDITOR'), async (req, res, next) => { try {
+  const id = routeParam(req.params.id);
+  await prisma.task.delete({ where: { id } });
+  emitBoardEvent(req.boardId!, { type: 'task.deleted', payload: { id } });
+  res.status(204).send();
+} catch (error) { next(error); } });
+
 router.post('/tasks/:id/move', authenticate, validate(moveSchema), loadTaskBoardContext(), requireRole('EDITOR'), async (req, res, next) => { try {
   const taskId = routeParam(req.params.id); const { destinationColumnId, destinationIndex, expectedVersion } = req.body;
   const source = await prisma.task.findUnique({ where: { id: taskId } }); const destination = await prisma.column.findUnique({ where: { id: destinationColumnId } }); const sourceColumn = source ? await prisma.column.findUnique({ where: { id: source.columnId } }) : null;
@@ -26,6 +57,10 @@ router.post('/tasks/:id/move', authenticate, validate(moveSchema), loadTaskBoard
     return tx.task.update({ where: { id: taskId }, data: { columnId: destinationColumnId, position } });
   });
   emitBoardEvent(req.boardId!, { type: 'task.moved', payload: moved });
-  res.json({ data: moved });
+  // Best-effort automation execution — post-commit, fully isolated, never affects the move response.
+  const afterAutomation = await runAutomationsForMove({ boardId: req.boardId!, task: { id: moved.id, columnId: moved.columnId, assigneeId: (moved as { assigneeId?: string | null }).assigneeId ?? null, labels: (moved as { labels?: string[] }).labels ?? [], priority: (moved as { priority?: string }).priority ?? 'MEDIUM' }, actorId: req.user!.id }).catch(() => null);
+  if (afterAutomation) emitBoardEvent(req.boardId!, { type: 'task.updated', payload: afterAutomation });
+  res.json({ data: afterAutomation ?? moved });
 } catch (error) { if ((error as { status?: number }).status === 409) return sendError(res, 409, 'CONFLICT', 'Task changed since it was loaded. Refresh and try again.'); next(error); } });
+
 export default router;

@@ -12,6 +12,8 @@
   --on-surface-variant: #656F7D;
   --outline: #E2E4E9;
   --outline-variant: #F0F2F5;
+  --primary-container: #E5F0FF;
+  --on-primary-container: #0052CC;
 }
 
 .dark {
@@ -22,6 +24,8 @@
   --on-surface-variant: #8B949E;
   --outline: #30363D;
   --outline-variant: #21262D;
+  --primary-container: #17325C;
+  --on-primary-container: #9EC5FF;
 }
 
 @layer base {

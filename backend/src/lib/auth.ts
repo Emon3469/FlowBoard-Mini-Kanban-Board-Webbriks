@@ -18,6 +18,19 @@ export function hashToken(token: string) {
   return crypto.createHmac('sha256', refreshSecret).update(token).digest('hex');
 }
 export function setRefreshCookie(res: Response, token: string) {
-  res.cookie('refreshToken', token, { httpOnly: true, sameSite: 'strict', secure: process.env.COOKIE_SECURE === 'true', maxAge: refreshTtlMs });
+  // Cross-site cookie behavior is driven by the explicit COOKIE_SECURE flag, not
+  // NODE_ENV. In real deployments the SPA and API live on different hosts, so the
+  // refresh cookie must be SameSite=None + Secure to survive cross-site requests
+  // (set COOKIE_SECURE=true there — see render.yaml). Locally over http we use
+  // SameSite=Lax without Secure: browsers silently DROP a Secure cookie on
+  // http://localhost, which would otherwise break token refresh and force repeat
+  // logins even when NODE_ENV happens to be "production".
+  const crossSiteSecure = process.env.COOKIE_SECURE === 'true';
+  res.cookie('refreshToken', token, {
+    httpOnly: true,
+    sameSite: crossSiteSecure ? 'none' : 'lax',
+    secure: crossSiteSecure,
+    maxAge: refreshTtlMs,
+  });
 }
 export { refreshTtlMs };

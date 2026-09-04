@@ -56,16 +56,32 @@ function setupGracefulShutdown(server: Server) {
   });
 }
 
+// Probe the database in the background with capped backoff. We deliberately do
+// NOT gate server.listen() on this, nor exit on failure: binding the port
+// immediately means a transient DB problem (a restart, a bad password, the DB
+// still booting) surfaces to the browser as an HTTP 503 — see /health and the
+// error handler in app.ts — instead of a connection-refused "Failed to fetch".
+// The server keeps retrying until the database is reachable.
+async function probeDatabaseWithRetry() {
+  for (let attempt = 1; ; attempt++) {
+    if (await checkDatabase()) return;
+    const delayMs = Math.min(30000, 1000 * 2 ** Math.min(attempt, 5));
+    console.error(
+      `⚠️  Database not reachable (attempt ${attempt}). Retrying in ${delayMs / 1000}s. ` +
+        `The API stays up and returns HTTP 503 until the database is ready.`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
 // Start server with error handling
 async function startServer() {
   try {
+    // Missing secrets are a non-transient, unrecoverable misconfiguration, so
+    // this stays a hard exit. Database connectivity, by contrast, is verified
+    // AFTER the port is bound (below), so a DB blip never becomes a
+    // connection-refused "Failed to fetch" in the browser.
     validateEnvironment();
-    
-    const dbConnected = await checkDatabase();
-    if (!dbConnected) {
-      console.error('❌ Cannot start server without database connection');
-      process.exit(1);
-    }
 
     const server = createServer(app);
     attachSockets(server);
@@ -91,6 +107,10 @@ async function startServer() {
         console.log(`⏱️  Press Ctrl+C to stop (graceful shutdown will run)\n`);
       }
     });
+
+    // Verify database connectivity WITHOUT blocking the port bind or exiting on
+    // failure. Runs in the background and degrades to HTTP 503 while retrying.
+    void probeDatabaseWithRetry();
   } catch (error) {
     console.error('❌ Failed to start server:', error instanceof Error ? error.message : String(error));
     process.exit(1);
@@ -108,14 +128,12 @@ process.on('uncaughtException', async (error) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', async (reason) => {
-  console.error('❌ Unhandled rejection:', reason);
-  try {
-    await prisma.$disconnect();
-  } catch (err) {
-    console.error('⚠️  Error during graceful shutdown:', err);
-  }
-  process.exit(1);
+// A stray unhandled rejection (e.g. a best-effort background socket emit or
+// post-commit automation) is logged but must NOT take down the whole API:
+// killing the process here turns one background error into "failed to fetch"
+// for every client until the server restarts.
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled rejection (logged, server kept alive):', reason);
 });
 
 startServer();

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { ApiUser, authApi, loadAccessToken, loadCurrentUser, setAccessToken, setCurrentUser } from './api';
+import { disconnectSocket } from './socket';
 
 interface AuthContextType {
   user: ApiUser | null;
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
     setToken(null);
     setUser(null);
+    disconnectSocket();
   }, []);
 
   return (

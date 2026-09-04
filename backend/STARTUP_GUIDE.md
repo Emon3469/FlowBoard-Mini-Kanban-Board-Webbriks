@@ -7,15 +7,15 @@ npm run dev
 ```
 
 This will automatically:
-- ✅ Clean up any orphaned processes on port 4001
+- ✅ Clean up any orphaned processes on port 4000
 - ✅ Validate environment configuration
-- ✅ Check database connectivity before starting
+- ✅ Bind the port immediately, then verify database connectivity in the background (returns HTTP 503 instead of refusing connections if the DB is briefly down)
 - ✅ Start the development server with file watching
 - ✅ Handle graceful shutdown on Ctrl+C
 
 ## What Was Fixed
 
-### Issue: `EADDRINUSE: address already in use :::4001`
+### Issue: `EADDRINUSE: address already in use :::4000`
 
 This error occurred when:
 1. Development server crashed or was force-killed without cleanup
@@ -39,8 +39,8 @@ This error occurred when:
 - Prevents orphaned processes
 
 #### 3. **Startup Validation** (`src/server.ts`)
-- Validates required environment variables
-- Tests database connectivity before listening
+- Validates required environment variables (hard-fails only on missing secrets)
+- Verifies database connectivity in the background *after* the port is bound, so a database blip returns HTTP 503 instead of a connection-refused "Failed to fetch"
 - Provides helpful error messages
 - Logs startup progress with emojis for clarity
 
@@ -81,20 +81,20 @@ npm seed
 
 **Windows:**
 ```powershell
-# See what's using port 4001
-Get-NetTCPConnection -LocalPort 4001 -State Listen
+# See what's using port 4000
+Get-NetTCPConnection -LocalPort 4000 -State Listen
 
 # Force kill it
-Get-NetTCPConnection -LocalPort 4001 -State Listen | Stop-Process -Force
+Get-NetTCPConnection -LocalPort 4000 -State Listen | Stop-Process -Force
 ```
 
 **macOS/Linux:**
 ```bash
-# See what's using port 4001
-lsof -i :4001
+# See what's using port 4000
+lsof -i :4000
 
 # Force kill it
-lsof -ti :4001 | xargs kill -9
+lsof -ti :4000 | xargs kill -9
 ```
 
 ### Database Connection Failed?
@@ -112,7 +112,7 @@ lsof -ti :4001 | xargs kill -9
 
 3. **Test connection directly:**
    ```bash
-   curl http://localhost:4001/health
+   curl http://localhost:4000/health
    ```
 
 4. **Check database exists:**
@@ -123,8 +123,8 @@ lsof -ti :4001 | xargs kill -9
 ### Failed to Fetch / Connection Refused?
 
 This usually means the backend isn't running. Check:
-1. Terminal shows "✅ FlowBoard API listening on http://localhost:4001"
-2. Frontend is trying to reach port 4001 (check `frontend/lib/api.ts`)
+1. Terminal shows "✅ FlowBoard API listening on http://localhost:4000"
+2. Frontend is trying to reach port 4000 (check `frontend/lib/api.ts`)
 3. Both backend and frontend are running (use `npm run dev` from root)
 
 ### Environment Variables Missing?
@@ -139,7 +139,7 @@ This usually means the backend isn't running. Check:
    DATABASE_URL=postgresql://flowboard:flowboard@localhost:5432/flowboard
    JWT_ACCESS_SECRET=your-secret-here
    JWT_REFRESH_SECRET=your-secret-here
-   PORT=4001
+   PORT=4000
    ```
 
 ## Best Practices

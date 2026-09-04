@@ -1,0 +1,103 @@
+# FlowBoard — Render Blueprint
+# ---------------------------------------------------------------------------
+# One managed PostgreSQL database + two Dockerized web services (API + web).
+# Create with: Render Dashboard -> New -> Blueprint -> pick this repo.
+#
+# What is wired automatically:
+#   - DATABASE_URL              -> the managed database's internal connection string
+#   - JWT_ACCESS_SECRET/REFRESH -> generated once by Render
+#   - PORT / NODE_ENV / COOKIE_SECURE
+#
+# What you must fill in when prompted (sync: false = "ask me, never overwrite"):
+#   - flowboard-api : CORS_ORIGIN, GOOGLE_API_KEY, VAPI_PUBLIC_KEY,
+#                     VAPI_PRIVATE_KEY, VAPI_ASSISTANT_ID
+#   - flowboard-web : NEXT_PUBLIC_API_URL
+#
+# The two cross-service URLs (CORS_ORIGIN and NEXT_PUBLIC_API_URL) are the public
+# *.onrender.com URLs. Render derives them from the service names below, so you can
+# pre-fill them at blueprint time (single pass):
+#   - NEXT_PUBLIC_API_URL = https://flowboard-api.onrender.com
+#   - CORS_ORIGIN         = https://flowboard-web.onrender.com
+# If Render appends a suffix to a name (when it is already taken), correct the two
+# values afterward and redeploy — see README "Render Deployment".
+#
+# NEXT_PUBLIC_API_URL is inlined into the Next.js bundle at BUILD time. Render passes
+# service env vars whose names match a Dockerfile `ARG` as build arguments, and
+# frontend/Dockerfile declares `ARG NEXT_PUBLIC_API_URL`, so the value bakes in
+# during the image build. The API keys live only on flowboard-api (which declares
+# no matching ARG), so no secret is ever baked into an image.
+
+databases:
+  - name: flowboard-db
+    databaseName: flowboard
+    user: flowboard
+    plan: free
+    region: oregon
+
+services:
+  # -------------------------------------------------------------------------
+  # Backend API — Express + Prisma (Docker). Runs `prisma migrate deploy`
+  # on start (see backend/Dockerfile CMD), then serves on PORT.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: flowboard-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: flowboard-db
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: PORT
+        value: "4000"
+      # Public URL of the web service (browser origin). Pre-fill with the value
+      # below; correct it if Render renamed flowboard-web.
+      - key: CORS_ORIGIN
+        sync: false
+      # Ask AI chatbot (Google Gemini). Server-side only.
+      - key: GOOGLE_API_KEY
+        sync: false
+      # Help & Support (Vapi). Public key is exposed via /support/config;
+      # private key stays server-side; assistant id is optional.
+      - key: VAPI_PUBLIC_KEY
+        sync: false
+      - key: VAPI_PRIVATE_KEY
+        sync: false
+      - key: VAPI_ASSISTANT_ID
+        sync: false
+
+  # -------------------------------------------------------------------------
+  # Frontend — Next.js (Docker). NEXT_PUBLIC_API_URL is baked at build time.
+  # -------------------------------------------------------------------------
+  - type: web
+    name: flowboard-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      # Public URL of the API service. Pre-fill with the value below; correct it
+      # if Render renamed flowboard-api, then redeploy (clears the build cache so
+      # the new value is re-baked into the bundle).
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

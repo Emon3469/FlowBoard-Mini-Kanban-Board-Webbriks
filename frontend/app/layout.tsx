@@ -5,13 +5,15 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'FlowBoard | Collaborative Kanban Board',
-  description: 'A calm, collaborative Kanban workspace for teams. Updated to use port 4001.',
+  description: 'A calm, collaborative Kanban workspace for teams.',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
     apple: '/flowboard-logo.png',
   },
 };
+
+const themeInitScript = `(function(){try{var t=localStorage.getItem('flowboard_theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
 
 export default function RootLayout({
   children,
@@ -21,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

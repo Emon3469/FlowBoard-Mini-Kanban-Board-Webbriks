@@ -5,45 +5,54 @@ services:
       POSTGRES_USER: flowboard
       POSTGRES_PASSWORD: flowboard
       POSTGRES_DB: flowboard
-    ports: ['5432:5432']
-    volumes: [flowboard-data:/var/lib/postgresql/data]
+    ports:
+      - 5432:5432
+    volumes:
+      - flowboard-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U flowboard -d flowboard']
-      interval: 5s
+      test:
+        - CMD-SHELL
+        - pg_isready -U flowboard -d flowboard
+      interval: 10s
       timeout: 5s
-      retries: 10
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://flowboard:flowboard@postgres:5432/flowboard
       JWT_ACCESS_SECRET: local-access-secret-change-me
       JWT_REFRESH_SECRET: local-refresh-secret-change-me
       CORS_ORIGIN: http://localhost:3000
       PORT: 4000
-    ports: ['4000:4000']
-    healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      NODE_ENV: development
+    ports:
+      - 4000:4000
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:4000
     environment:
       NODE_ENV: production
-    ports: ['3000:3000']
-    healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://localhost:3000/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - 3000:3000
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   flowboard-data:
+    driver: local

@@ -12,10 +12,36 @@ import { sendError } from './lib/http';
 import rateLimit from 'express-rate-limit';
 import { prisma } from './lib/prisma';
 import workspaceRoutes from './modules/workspace.routes';
+import notificationRoutes from './modules/notifications/notifications.routes';
+import reportRoutes from './modules/reports/reports.routes';
+import searchRoutes from './modules/search/search.routes';
+import aiRoutes from './modules/ai/ai.routes';
+import supportRoutes from './modules/support/support.routes';
+import integrationRoutes from './modules/integrations/integrations.routes';
+import automationRoutes from './modules/automations/automations.routes';
 
 export const app = express();
+// Behind Render's proxy, trust the first hop so express-rate-limit and secure
+// cookies see the real client IP / protocol.
+app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true }));
+// A STRING origin makes cors echo that exact value as Access-Control-Allow-Origin
+// for EVERY request — it never compares against the caller. So a browser tab on
+// http://127.0.0.1:3000 (Next's "Network" URL, a bookmark, or a LAN IP) gets an
+// ACAO that doesn't match its own origin, the browser blocks the response, and
+// the fetch dies as "Failed to fetch". Accept a comma-separated allowlist and
+// reflect the caller's origin when it matches. Requests with no Origin header
+// (curl, health checks, same-origin) are allowed.
+const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: true, skip: (req) => req.path === '/health' }));
@@ -34,10 +60,7 @@ app.get('/health', async (_req, res) => {
     });
   } catch (error) {
     console.error('Health check failed - database error:', error);
-    res.status(503).json({
-      error: 'Database connection failed',
-      status: 'unhealthy'
-    });
+    return sendError(res, 503, 'DB_ERROR', 'Database connection failed.');
   }
 });
 
@@ -47,6 +70,13 @@ app.use('/', memberRoutes);
 app.use('/', columnRoutes);
 app.use('/', taskRoutes);
 app.use('/', workspaceRoutes);
+app.use('/', notificationRoutes);
+app.use('/', reportRoutes);
+app.use('/', searchRoutes);
+app.use('/', aiRoutes);
+app.use('/', supportRoutes);
+app.use('/', integrationRoutes);
+app.use('/', automationRoutes);
 
 // Catch-all error handler
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
