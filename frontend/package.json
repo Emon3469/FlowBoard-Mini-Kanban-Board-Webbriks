@@ -30,7 +30,7 @@
     "@types/react-dom": "^19.1.7",
     "typescript": "5.8.2"
   },
-  "optionalDependencies": {
+  "overrides": {
     "sharp": false
   }
 }
