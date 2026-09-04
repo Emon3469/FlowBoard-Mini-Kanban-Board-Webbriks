@@ -7,11 +7,12 @@ WORKDIR /app
 RUN npm config set unsafe-perm true && \
     npm config set optional false && \
     npm config set audit false && \
-    npm config set fund false
+    npm config set fund false && \
+    npm config set ignore-scripts true
 
 # Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install  # Use install to generate/update lockfile
+RUN npm ci
 
 # Copy source and build
 COPY . .

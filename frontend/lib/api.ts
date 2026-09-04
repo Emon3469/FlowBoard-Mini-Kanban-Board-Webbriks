@@ -15,8 +15,9 @@ export function setAccessToken(token: string | null) {
 }
 
 export function loadAccessToken() {
-  if (typeof window !== 'undefined') accessToken = window.localStorage.getItem('flowboard_access_token');
-  return accessToken;
+  if (typeof window === 'undefined') return null;
+  const value = window.localStorage.getItem('flowboard_access_token');
+  return value ? value : null;
 }
 
 export function setCurrentUser(user: ApiUser | null) {
@@ -28,7 +29,14 @@ export function setCurrentUser(user: ApiUser | null) {
 export function loadCurrentUser() {
   if (typeof window === 'undefined') return null;
   const value = window.localStorage.getItem('flowboard_user');
-  return value ? JSON.parse(value) as ApiUser : null;
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as ApiUser;
+  } catch {
+    // Corrupted user data, remove it
+    window.localStorage.removeItem('flowboard_user');
+    return null;
+  }
 }
 
 async function refreshAccessToken() {

@@ -17,12 +17,16 @@ export default function HomePage() {
     }
   }, [user, isLoading, router]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-primary animate-pulse" />
-        <span className="text-on-surface-variant text-sm">Loading FlowBoard...</span>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary animate-pulse" />
+          <span className="text-on-surface-variant text-sm">Loading FlowBoard...</span>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+  // Redirect handled in useEffect; render null to avoid flicker
+  return null;
 }
