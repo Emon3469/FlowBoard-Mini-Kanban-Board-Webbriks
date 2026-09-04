@@ -3,13 +3,15 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Set npm config to reduce permission issues
+# Set npm configuration to prevent optional dependencies and fix permissions
 RUN npm config set unsafe-perm true && \
-    npm config set optional false
+    npm config set optional false && \
+    npm config set audit false && \
+    npm config set fund false
 
 # Copy package files and install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm install  # Use install to generate/update lockfile
 
 # Copy source and build
 COPY . .
@@ -29,6 +31,7 @@ ENV NODE_ENV=production
 
 # Copy runtime dependencies
 COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy built application
