@@ -7,7 +7,7 @@
     "dev:clean": "powershell -Command \"Get-NetTCPConnection -LocalPort 4000 -State Listen -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; echo 'Port cleaned. Starting server...'; npm run dev:direct\"",
     "build": "tsc",
     "start": "node dist/server.js",
-    "seed": "tsx prisma/seed.ts",
+    "seed": "tsx src/prisma/seed.ts",
     "test": "jest --runInBand",
     "test:live": "cross-env RUN_LIVE_DB_TESTS=1 jest --runInBand tests/live.integration.test.ts"
   },
