@@ -30,26 +30,27 @@ async function main() {
             ] } },
           ],
         },
-        include: { columns: { orderBy: { position: 'asc' } } },
-      });
-
-    const shipped = board.columns.find((column) => column.name === 'Shipped');
-    if (shipped && !(await prisma.automation.findFirst({ where: { boardId: board.id, name: 'Celebrate shipped work' } }))) {
-      await prisma.automation.create({ data: { boardId: board.id, name: 'Celebrate shipped work', enabled: true, triggerColumnId: shipped.id, action: 'add_label', actionValue: 'shipped' } });
-    }
-
-    if (!(await prisma.note.findFirst({ where: { userId: alice.id, title: 'Welcome to FlowBoard' } }))) {
-      await prisma.note.create({ data: { userId: alice.id, title: 'Welcome to FlowBoard', content: 'Use Notes for quick thoughts. Try the List, Kanban, and Timeline views on your board, and drag a card into "Shipped" to see an automation fire.' } });
-    }
-
-    await prisma.favorite.upsert({ where: { userId_boardId: { userId: alice.id, boardId: board.id } }, update: {}, create: { userId: alice.id, boardId: board.id } });
-
-    if (!(await prisma.notification.findFirst({ where: { userId: bob.id, type: 'member_added', boardId: board.id } }))) {
-      await prisma.notification.create({ data: { userId: bob.id, type: 'member_added', title: `You were added to "${board.name}"`, boardId: board.id, actorId: alice.id } });
-    }
-
-    console.log('✅ Seed complete. Users: alice@flowboard.dev / bob@flowboard.dev — password: Flowboard123!');
+      },
+      include: { columns: { orderBy: { position: 'asc' } } },
+    });
   }
+
+  const shipped = board.columns.find((column) => column.name === 'Shipped');
+  if (shipped && !(await prisma.automation.findFirst({ where: { boardId: board.id, name: 'Celebrate shipped work' } }))) {
+    await prisma.automation.create({ data: { boardId: board.id, name: 'Celebrate shipped work', enabled: true, triggerColumnId: shipped.id, action: 'add_label', actionValue: 'shipped' } });
+  }
+
+  if (!(await prisma.note.findFirst({ where: { userId: alice.id, title: 'Welcome to FlowBoard' } }))) {
+    await prisma.note.create({ data: { userId: alice.id, title: 'Welcome to FlowBoard', content: 'Use Notes for quick thoughts. Try the List, Kanban, and Timeline views on your board, and drag a card into "Shipped" to see an automation fire.' } });
+  }
+
+  await prisma.favorite.upsert({ where: { userId_boardId: { userId: alice.id, boardId: board.id } }, update: {}, create: { userId: alice.id, boardId: board.id } });
+
+  if (!(await prisma.notification.findFirst({ where: { userId: bob.id, type: 'member_added', boardId: board.id } }))) {
+    await prisma.notification.create({ data: { userId: bob.id, type: 'member_added', title: `You were added to "${board.name}"`, boardId: board.id, actorId: alice.id } });
+  }
+
+  console.log('✅ Seed complete. Users: alice@flowboard.dev / bob@flowboard.dev — password: Flowboard123!');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());

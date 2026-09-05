@@ -5,7 +5,11 @@ import { verifyAccessToken } from '../lib/auth';
 import { prisma } from '../lib/prisma';
 
 export function attachSockets(httpServer: HttpServer) {
-  const io = new Server(httpServer, { cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true } });
+  const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const io = new Server(httpServer, { cors: { origin: allowedOrigins, credentials: true } });
 
   io.use((socket, next) => {
     try {

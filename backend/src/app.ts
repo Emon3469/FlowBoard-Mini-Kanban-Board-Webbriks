@@ -78,19 +78,6 @@ app.use('/', supportRoutes);
 app.use('/', integrationRoutes);
 app.use('/', automationRoutes);
 
-// TEMPORARY SEED ENDPOINT – REMOVE AFTER FIRST USE
-if (process.env.SEED_ENABLED === 'true') {
-  app.get('/seed', async (_req, res) => {
-    try {
-      // Import the seed function from your seed file
-      await import('./prisma/seed.js');
-      res.json({ success: true, message: 'Database seeded' });
-    } catch (err) {
-      console.error('Seed error:', err);
-      res.status(500).json({ success: false, error: (err as Error).message });
-    }
-  });
-}
 
 // Catch-all error handler
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
