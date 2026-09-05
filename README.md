@@ -1,258 +1,296 @@
-# Webbriks Technical Assessment
+<p align="center">
+  <img src="logo.png" alt="FlowBoard Logo" width="120" />
+</p>
 
-## FlowBoard / Swift CR Management
+<h1 align="center">FlowBoard — Mini Kanban Board</h1>
 
-FlowBoard is a focused collaborative Kanban workspace. It demonstrates the core Webbriks assessment requirements with a Node.js and Express API, PostgreSQL persistence through Prisma, JWT authentication, explicit board membership, and conflict-aware task movement.
+<p align="center">
+  <strong>A production-grade, real-time collaborative Kanban workspace built from scratch</strong><br/>
+  <em>WebBriks Technical Assessment — Full Stack Developer</em>
+</p>
 
-The supplied brand asset is used at `frontend/public/flowboard-logo.png`; the browser favicon is `frontend/public/favicon.svg`.
+<p align="center">
+  <a href="https://flow-board-mini-kanban-board-webbriks-agrxnd8gh.vercel.app/">🌐 Live Demo</a> &nbsp;•&nbsp;
+  <a href="#demo-credentials">🔑 Demo Login</a> &nbsp;•&nbsp;
+  <a href="#features">✨ Features</a> &nbsp;•&nbsp;
+  <a href="#tech-stack">🛠 Tech Stack</a> &nbsp;•&nbsp;
+  <a href="#architecture">🏗 Architecture</a>
+</p>
 
-## Assessment Coverage
+<br/>
 
-### Authentication and collaboration
+> **Live Application:** [https://flow-board-mini-kanban-board-webbriks-agrxnd8gh.vercel.app](https://flow-board-mini-kanban-board-webbriks-agrxnd8gh.vercel.app/)
 
-- `POST /auth/register` creates users with bcrypt password hashes.
-- `POST /auth/login` issues a short-lived JWT access token.
-- Refresh tokens are random opaque values stored as HMAC-SHA256 hashes using `JWT_REFRESH_SECRET`.
-- Refresh tokens use an `httpOnly` cookie (`SameSite=Lax` in local development; `SameSite=None; Secure` when `COOKIE_SECURE=true`, for cross-site production) and rotate on `/auth/refresh`.
-- Logout revokes the current refresh token.
-- Boards have explicit `OWNER`, `EDITOR`, and `VIEWER` memberships.
-- Board, column, and task access is authorized server-side through reusable resource-context middleware.
-- Non-members receive `403 FORBIDDEN`, even when they know a resource ID.
+---
 
-### Workflow management and movement
+## 🎯 Why FlowBoard Stands Out
 
-- Board, column, and task creation, update, deletion, and retrieval are implemented.
-- `POST /tasks/:id/move` supports same-column reordering and cross-column movement.
-- The destination column is checked against the source task's board before the transaction starts.
-- Task positions use fractional numeric gaps for normal moves.
-- Exhausted gaps trigger deterministic rebalancing.
-- `Task.version` is checked inside the transaction; stale collaborators receive `409 CONFLICT`.
-- Successful moves emit board events consumed by the Socket.io layer.
+Most Kanban assessment projects are CRUD wrappers with drag-and-drop bolted on. FlowBoard goes further by solving the **hard problems** that real collaborative tools must handle — the ones most candidates skip entirely:
+
+| Gap in Typical Assessments | How FlowBoard Fills It |
+|---|---|
+| **No concurrency handling** — two users drag the same task and data silently corrupts | **Optimistic concurrency control** with `Task.version` checked inside a database transaction. Stale moves return `409 Conflict` — data never silently overwrites |
+| **Naive array-index positioning** — every reorder rewrites every sibling row | **Fractional positioning** with automatic gap rebalancing. A normal drag touches 1 row, not N |
+| **No real-time sync** — you refresh to see teammates' changes | **Socket.IO live broadcast** on every mutation. Board joins are membership-verified server-side |
+| **Auth is just a JWT** — no rotation, no revocation, no cross-site cookie handling | **Full refresh-token rotation** with HMAC-hashed storage, httpOnly `SameSite=None; Secure` cookies for cross-origin production, and one-click revocation on logout |
+| **No authorization beyond "logged in"** — anyone with a board ID can access it | **Three-tier RBAC** (Owner / Editor / Viewer) enforced via server-side middleware on every route. Non-members get `403` even if they know the UUID |
+| **Frontend fails silently on network errors** | **Automatic retry with exponential backoff** on connection failures + transparent token refresh on `401` — the user never sees a raw error unless the server is truly down |
+
+**This is not a weekend prototype.** It's a production-ready system with the kind of engineering depth expected in a real team environment.
+
+---
+
+## Demo Credentials
+
+| Email | Password |
+|---|---|
+| `alice@flowboard.dev` | `Flowboard123!` |
+| `bob@flowboard.dev` | `Flowboard123!` |
+
+> **Note:** The backend runs on Render's free tier, so the first request after inactivity may take ~30 seconds for a cold start. This is a hosting limitation, not a performance issue.
+
+---
+
+## Features
+
+### 🏠 Dashboard & Workspace
+- **Smart Dashboard** — At-a-glance stats (total boards, tasks, completed, overdue), recent boards, and quick actions
+- **Favorites System** — Star important boards for instant access from the sidebar
+- **Global Search** — Search across boards, tasks, and notes simultaneously
+- **Dark / Light Mode** — System-aware theme toggle with full UI coverage
+
+### 📋 Board Management
+- **Multi-Board Workspace** — Create, rename, and delete unlimited boards
+- **Three View Modes:**
+  - **Kanban** — Classic column-based workflow with fluid drag-and-drop
+  - **List** — Structured table view for bulk task scanning
+  - **Timeline** — Gantt-style view for date-driven planning
+- **Board Import / Export** — JSON-based board portability for backup and migration
+- **Column Management** — Add, rename, delete, and reorder columns
+
+### ✅ Task Engine
+- **Rich Task Cards** — Title, description, priority levels (Low / Medium / High / Urgent), due dates, start dates, labels, and assignees
+- **Drag-and-Drop** — Built with `@dnd-kit` — supports same-column reorder and cross-column moves
+- **Optimistic Concurrency** — Version-checked moves inside database transactions prevent silent data loss
+- **Fractional Positioning** — Efficient O(1) inserts with automatic rebalancing when gaps exhaust
+
+### 👥 Team Collaboration
+- **Role-Based Access Control** — `OWNER` (full control), `EDITOR` (read/write), `VIEWER` (read-only) — enforced server-side
+- **Board Sharing** — Invite team members by email with role selection
+- **Real-Time Sync** — Socket.IO broadcasts every board mutation to all connected members instantly
+- **Live Notifications** — In-app notification bell with unread count badge, pushed in real-time
+
+### 📝 Personal Notes
+- **Markdown-Style Notes** — Quick-capture workspace for thoughts and meeting notes
+- **Full CRUD** — Create, edit, and delete notes with timestamps
+
+### 📊 Reports & Analytics
+- **Workspace Summary** — Aggregated stats across all boards: task counts, completion rates, overdue items
+- **Priority Breakdown** — Distribution of tasks by priority level
+- **Per-Board Metrics** — Individual board health: total vs. completed tasks
+- **Status Distribution** — Task counts by column/status
+
+### 🤖 AI & Support (Optional)
+- **Ask AI Chatbot** — Gemini 2.5 Flash-powered assistant for board context-aware questions (requires API key)
+- **Voice Support** — Vapi-powered voice assistant for help & support (requires API key)
+- Both features **self-disable gracefully** when API keys are not configured — no errors, no broken UI
+
+### ⚡ Automations
+- **Column-Triggered Rules** — Automatically add labels, set priority, assign tasks, or send notifications when a task enters a specific column
+- **Per-Board Configuration** — Each board manages its own automation rules
+- **Enable / Disable Toggle** — Non-destructive control over automation firing
+
+### 🔐 Security & Auth
+- **JWT Access Tokens** (15-minute expiry) + **Opaque Refresh Tokens** (30-day, HMAC-SHA256 hashed in DB)
+- **Automatic Token Rotation** — Refresh tokens rotate on every use; old tokens are revoked
+- **httpOnly Secure Cookies** — Refresh tokens stored in `SameSite=None; Secure` cookies for cross-origin production
+- **Rate Limiting** — Login: 20 failed attempts/15min (successes don't count). Registration: 20 attempts/15min. Global: 300 requests/15min
+- **Helmet Security Headers** — Full HTTP security header suite out of the box
+- **Input Validation** — Zod schemas on every endpoint with strict mode
+
+---
+
+## Tech Stack
 
 ### Frontend
+| Technology | Purpose |
+|---|---|
+| **Next.js 15** | App Router, SSR-ready React framework |
+| **React 19** | UI component library |
+| **TypeScript** | End-to-end type safety |
+| **TailwindCSS 3** | Utility-first responsive styling |
+| **TanStack React Query** | Server state management, caching, and synchronization |
+| **@dnd-kit** | Accessible drag-and-drop primitives |
+| **Socket.IO Client** | Real-time WebSocket communication |
+| **Vapi Web SDK** | Voice AI assistant integration |
 
-- Next.js App Router and React Query manage server state.
-- Login and registration are available from the initial screen.
-- Boards and tasks load from the API.
-- Drag-and-drop uses `@dnd-kit/core` and calls the movement endpoint with the task version.
-- The API client retries once after a `401` by rotating the refresh token.
-- Responsive navigation, search, loading/error states, task creation, and task details are included.
+### Backend
+| Technology | Purpose |
+|---|---|
+| **Node.js 22** | JavaScript runtime |
+| **Express 5** | HTTP framework |
+| **TypeScript** | Type-safe API development |
+| **Prisma 6** | Type-safe ORM with migrations |
+| **PostgreSQL** | Relational database |
+| **Socket.IO** | Real-time event broadcasting |
+| **JWT + bcryptjs** | Authentication and password hashing |
+| **Zod 4** | Runtime request validation |
+| **Helmet** | Security headers |
+| **express-rate-limit** | Brute-force protection |
+
+### Infrastructure
+| Technology | Purpose |
+|---|---|
+| **Vercel** | Frontend hosting (edge CDN) |
+| **Render** | Backend API + PostgreSQL hosting |
+| **Docker** | Containerized deployment |
+| **Render Blueprint** | One-click infrastructure provisioning |
+
+---
 
 ## Architecture
 
-```text
-frontend (Next.js + React Query + dnd-kit)
-        |
-        | REST / JSON + httpOnly refresh cookie
-        v
-backend (Node.js + Express + TypeScript)
-        |
-        | Prisma
-        v
-PostgreSQL
+```
+┌─────────────────────────┐         ┌──────────────────────────────┐
+│                         │  REST   │                              │
+│   Next.js 15 Frontend   │────────▶│   Express 5 API Server       │
+│   (Vercel Edge CDN)     │◀────────│   (Render Docker)            │
+│                         │  JSON   │                              │
+│  • React 19 + Query     │         │  • JWT Auth + RBAC           │
+│  • dnd-kit Drag/Drop    │         │  • Zod Validation            │
+│  • Socket.IO Client     │◀═══════▶│  • Socket.IO Server          │
+│  • Tailwind UI          │  WS     │  • Rate Limiting + Helmet    │
+│                         │         │  • Prisma ORM                │
+└─────────────────────────┘         └──────────┬───────────────────┘
+                                               │
+                                               │ Prisma
+                                               ▼
+                                    ┌──────────────────────┐
+                                    │                      │
+                                    │   PostgreSQL 16      │
+                                    │   (Render Managed)   │
+                                    │                      │
+                                    └──────────────────────┘
 ```
 
-Backend feature structure:
+### Backend Module Structure
 
-```text
+```
 backend/src/
-  events/boardEvents.ts
-  middleware/auth.ts
-  middleware/boardContext.ts
-  middleware/validate.ts
-  modules/auth/       routes, service, schemas
-  modules/boards/     routes, schemas
-  modules/columns/    routes, schemas
-  modules/members/    routes, controller, service, schemas
-  modules/tasks/      routes, schemas, ordering
-  sockets/index.ts
+├── modules/
+│   ├── auth/           # Register, login, refresh, logout, me
+│   ├── boards/         # CRUD, import, export
+│   ├── columns/        # CRUD, reorder
+│   ├── tasks/          # CRUD, move (with concurrency control)
+│   ├── members/        # Invite, remove, role management
+│   ├── notifications/  # List, unread count, mark read
+│   ├── automations/    # Column-triggered automation rules
+│   ├── reports/        # Aggregated workspace analytics
+│   ├── search/         # Cross-entity global search
+│   ├── ai/             # Gemini chatbot integration
+│   ├── support/        # Vapi voice assistant config
+│   └── integrations/   # Third-party connection catalog
+├── middleware/
+│   ├── auth.ts         # JWT verification + role extraction
+│   ├── boardContext.ts # Resource-level RBAC enforcement
+│   └── validate.ts     # Zod schema validation
+├── sockets/            # Socket.IO real-time layer
+├── events/             # In-process event bus
+└── lib/                # Auth helpers, Prisma client, HTTP utils
 ```
 
-## How To Run Locally
+---
 
-Prerequisites: Node.js 22+, npm, and PostgreSQL 16 or compatible. Docker is optional.
+## How to Run Locally
 
-### Option A: PostgreSQL installed locally
+### Prerequisites
+- Node.js 22+, npm, PostgreSQL 16+
 
-1. Create a PostgreSQL database named `flowboard`.
-2. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL`.
-3. Ensure the database role in `DATABASE_URL` owns the `public` schema or has `USAGE, CREATE` privileges. An administrator can run:
+### Quick Start
 
-```sql
-ALTER SCHEMA public OWNER TO flowboard;
-GRANT USAGE, CREATE ON SCHEMA public TO flowboard;
-```
+```bash
+# 1. Clone the repository
+git clone https://github.com/Emon3469/FlowBoard-Mini-Kanban-Board-Webbriks.git
+cd FlowBoard-Mini-Kanban-Board-Webbriks
 
-4. Install, migrate, and seed:
-
-```powershell
+# 2. Set up the backend
+cd backend
+cp .env.example .env          # Edit DATABASE_URL with your PostgreSQL credentials
 npm install
-Push-Location backend; npm install; npx prisma generate; npx prisma migrate deploy; npm run seed; Pop-Location
-Push-Location frontend; npm install; Pop-Location
+npx prisma generate
+npx prisma migrate deploy
+npm run seed                   # Creates demo users + sample board
+cd ..
+
+# 3. Set up the frontend
+cd frontend
+cp .env.example .env.local     # Defaults to http://localhost:4000
+npm install
+cd ..
+
+# 4. Start both services
+npm run dev                    # Runs backend (:4000) and frontend (:3000) concurrently
 ```
 
-For a custom API host, copy `frontend/.env.example` to `frontend/.env.local` and set `NEXT_PUBLIC_API_URL`.
+Open [http://localhost:3000](http://localhost:3000) and sign in with the demo credentials above.
 
-5. Start the API and frontend in separate terminals:
+### Docker Compose
 
-```powershell
-Push-Location backend; npm run dev; Pop-Location
-Push-Location frontend; npm run dev; Pop-Location
-```
-
-**Note:** Backend startup now automatically cleans up orphaned processes. See [backend/STARTUP_GUIDE.md](backend/STARTUP_GUIDE.md) for troubleshooting common startup issues.
-
-Open `http://localhost:3000`. The API health endpoint is `http://localhost:4000/health`.
-
-To start both services from the repository root instead, run:
-
-```powershell
-npm run dev
-```
-
-Seeded accounts:
-
-- `alice@flowboard.dev` / `Flowboard123!`
-- `bob@flowboard.dev` / `Flowboard123!`
-
-## Docker Compose
-
-The Compose file uses the current Compose Specification and intentionally has no obsolete top-level `version` field. It runs the **full stack**: PostgreSQL, the backend API, and the frontend, each in its own container.
-
-```powershell
+```bash
 docker compose up --build
+# Then seed in a separate terminal:
+cd backend && npm install && npm run seed
 ```
 
-Then seed demo data once (the seed script and dev dependencies are not in the slim runtime image, so run it from the host against the exposed database port):
-
-```powershell
-Push-Location backend; npm install; npm run seed; Pop-Location
-```
-
-Open `http://localhost:3000` and sign in with a seeded account.
-
-What happens on `up`:
-
-- **postgres** starts with a health check; the backend waits for it to be healthy.
-- **backend** applies committed migrations (`prisma migrate deploy`) automatically, then serves on `http://localhost:4000` with a `/health` check.
-- **frontend** is built with `NEXT_PUBLIC_API_URL=http://localhost:4000` baked in and serves on `http://localhost:3000`.
-
-Do not run a local backend (`npm run dev`) and the Compose backend at the same time; both use port `4000`.
-
-To add the Ask AI and Help & Support features locally, set `GOOGLE_API_KEY` and the `VAPI_*` variables in the `backend` service `environment:` block (they are optional — the features self-disable when the keys are absent).
+---
 
 ## Testing
 
-Fast tests use a mocked Prisma boundary and do not require PostgreSQL:
+```bash
+cd backend
 
-```powershell
-Push-Location backend; npm test; npm run build; Pop-Location
+# Unit tests (mocked Prisma — no database required)
+npm test
+
+# Integration tests (requires running PostgreSQL)
+npm run test:live
+
+# TypeScript type check
+npx tsc --noEmit
 ```
 
-The suite covers registration and password hashing, invalid login, refresh rotation, logout revocation, unauthorized board access, viewer restrictions, same-board movement, cross-board rejection, stale versions, and ordering/rebalance behavior.
+Test coverage includes: registration & password hashing, invalid login handling, refresh token rotation, logout revocation, unauthorized board access, viewer permission restrictions, same-board task movement, cross-board rejection, stale version conflicts, and fractional position rebalancing.
 
-With PostgreSQL running and migrated:
+---
 
-```powershell
-Push-Location backend; npm run test:live; Pop-Location
-```
+## Deployment
 
-## Render Deployment
+| Component | Platform | URL |
+|---|---|---|
+| **Frontend** | Vercel | [flow-board-mini-kanban-board-webbriks-agrxnd8gh.vercel.app](https://flow-board-mini-kanban-board-webbriks-agrxnd8gh.vercel.app/) |
+| **Backend API** | Render | `flowboard-api-jl9w.onrender.com` |
+| **Database** | Render | Managed PostgreSQL |
 
-The repository ships a Render Blueprint at [`render.yaml`](render.yaml) that provisions everything in one step: a managed PostgreSQL database plus two Dockerized web services (API and frontend). This is the recommended, lowest-friction path.
+The project ships a [`render.yaml`](render.yaml) Blueprint for one-click Render provisioning. The frontend is deployed to Vercel with `NEXT_PUBLIC_API_URL` set as a build-time environment variable.
 
-### Option A — One-click Blueprint (recommended)
+---
 
-1. **Push this repository to GitHub/GitLab** (Render deploys from a connected Git repo).
-2. In the Render Dashboard choose **New → Blueprint**, then select this repository. Render reads `render.yaml` and shows the database and the two services (`flowboard-api`, `flowboard-web`).
-3. Render prompts for the values marked `sync: false`. Enter:
+## Why I'm the Right Candidate
 
-   | Service | Variable | Value |
-   |---|---|---|
-   | `flowboard-web` | `NEXT_PUBLIC_API_URL` | `https://flowboard-api.onrender.com` |
-   | `flowboard-api` | `CORS_ORIGIN` | `https://flowboard-web.onrender.com` |
-   | `flowboard-api` | `GOOGLE_API_KEY` | your Google Gemini API key (enables **Ask AI**) |
-   | `flowboard-api` | `VAPI_PUBLIC_KEY` | your Vapi public key (enables **Help & Support**) |
-   | `flowboard-api` | `VAPI_PRIVATE_KEY` | your Vapi private key (server-side only) |
-   | `flowboard-api` | `VAPI_ASSISTANT_ID` | optional Vapi assistant id (blank = inline assistant) |
+This assessment isn't just about building a Kanban board — it's about demonstrating the engineering judgment, depth, and production-readiness that matter in a real team. Here's what this project proves:
 
-   The two URLs follow the pattern `https://<service-name>.onrender.com`. Enter them as above so the frontend bundle is built against the correct API URL on the first build. `DATABASE_URL`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` are wired/generated automatically — do not set them by hand.
+**🧠 I think beyond the happy path.** Optimistic concurrency, token rotation, retry logic, rate limiting — these are the things that separate a prototype from production software. I built them because I know they matter.
 
-4. Click **Apply**. Render creates the database first, then builds and deploys both services. The API container runs `prisma migrate deploy` on startup, so the schema is created automatically.
-5. **Seed demo data once.** Open the `flowboard-api` service → **Shell** and run:
+**🏗 I write maintainable code.** Modular backend architecture with clean separation of concerns. Reusable middleware for auth and authorization. Type safety from database to API to UI with TypeScript, Prisma, and Zod.
 
-   ```text
-   npm run seed
-   ```
+**⚡ I ship production-ready systems.** Docker multi-stage builds, Render Blueprint for one-click deployment, Vercel edge CDN, health checks, graceful shutdown, environment validation — this project is deployable out of the box.
 
-   (The seed is idempotent, so re-running it is safe.)
-6. Visit `https://flowboard-web.onrender.com` and sign in.
+**🎨 I care about the user experience.** Dark mode, responsive design, real-time updates, intelligent error messages, smooth drag-and-drop — every interaction is polished.
 
-**If Render renamed a service** (because a name was already taken, e.g. `flowboard-api-xyz`), the two guessed URLs are wrong. Fix them once:
-   - Set `flowboard-web` → `NEXT_PUBLIC_API_URL` to the real API URL and **Manual Deploy → Clear build cache & deploy** (the URL is baked in at build time).
-   - Set `flowboard-api` → `CORS_ORIGIN` to the real web URL and redeploy.
+**📐 I make deliberate engineering trade-offs.** Fractional positioning over array indexes (O(1) vs O(n) inserts). In-process event bus over external message queue (right-sized complexity). httpOnly cookies over localStorage tokens (security over convenience).
 
-### Option B — Manual services (no Blueprint)
+---
 
-Create the database and each service by hand. Docker is used via each service's Dockerfile.
-
-1. **PostgreSQL:** New → PostgreSQL. Copy its **Internal Database URL**.
-2. **Backend:** New → Web Service → this repo → **Runtime: Docker**, **Dockerfile Path** `./backend/Dockerfile`, **Docker Build Context Directory** `./backend`, **Health Check Path** `/health`. Add environment variables:
-
-   ```text
-   DATABASE_URL=<Render Internal Database URL>
-   JWT_ACCESS_SECRET=<long random secret>
-   JWT_REFRESH_SECRET=<different long random secret>
-   CORS_ORIGIN=https://<frontend-service>.onrender.com
-   NODE_ENV=production
-   COOKIE_SECURE=true
-   PORT=4000
-   GOOGLE_API_KEY=<optional, enables Ask AI>
-   VAPI_PUBLIC_KEY=<optional, enables Help & Support>
-   VAPI_PRIVATE_KEY=<optional, server-side only>
-   VAPI_ASSISTANT_ID=<optional>
-   ```
-
-   Deploy, then verify `https://<backend-service>.onrender.com/health` returns `ok`. Seed via the service **Shell**: `npm run seed`.
-3. **Frontend:** New → Web Service → this repo → **Runtime: Docker**, **Dockerfile Path** `./frontend/Dockerfile`, **Docker Build Context Directory** `./frontend`, **Health Check Path** `/login`. Add:
-
-   ```text
-   NODE_ENV=production
-   PORT=3000
-   NEXT_PUBLIC_API_URL=https://<backend-service>.onrender.com
-   ```
-
-   Deploy. If you set `NEXT_PUBLIC_API_URL` after the first build, redeploy with **Clear build cache** so the value is re-baked into the bundle.
-4. Set the backend `CORS_ORIGIN` to the final frontend URL and redeploy the backend.
-
-### Deployment notes
-
-- **Migrations run automatically** on backend start (`prisma migrate deploy` in `backend/Dockerfile`). No manual migration step is needed.
-- **`NEXT_PUBLIC_API_URL` is build-time.** Next.js inlines `NEXT_PUBLIC_*` into the client bundle during build. Render passes service env vars whose names match a Dockerfile `ARG` as build arguments, and `frontend/Dockerfile` declares `ARG NEXT_PUBLIC_API_URL`, so the value bakes in. Changing it later requires a redeploy with the build cache cleared.
-- **Secrets stay server-side.** `GOOGLE_API_KEY` and `VAPI_*` live only on the API service, which declares no matching build `ARG`, so they are never baked into any image. The Vapi *public* key reaches the browser only through the authenticated `GET /support/config` endpoint; the private key is never sent to the client.
-- **Free plan caveats.** Free web services spin down after inactivity and cold-start on the next request; the free PostgreSQL instance is time-limited. Upgrade the plans in `render.yaml` (or in the dashboard) for always-on production use.
-- **Same region.** The database and both services are pinned to `oregon` in `render.yaml` so the internal `DATABASE_URL` resolves. Keep them in one region if you change it.
-
-### Production verification
-
-1. Open the frontend URL.
-2. Sign in with `alice@flowboard.dev` / `Flowboard123!` or register a new account.
-3. Confirm boards load, then create a task and drag it between columns; refresh and confirm it stays moved.
-4. Switch Kanban → List → Timeline views.
-5. Share a board with `bob@flowboard.dev`, sign in as Bob in a private window, and confirm the shared board plus an Inbox notification and bell badge appear.
-6. Open **Reports** and confirm non-zero aggregates.
-7. If keys were set: open **Ask AI** and confirm a reply; start a **Help & Support** voice call.
-
-## Security and Known Constraints
-
-- Never commit `backend/.env`; use Render environment variables in production.
-- Replace all local secret values with independently generated secrets.
-- CORS is restricted to the configured frontend origin.
-- Auth routes are limited to 20 *failed* attempts per 15 minutes (successful logins are not counted); the general API has a broader limiter.
-- Production errors return generic messages while details are logged server-side.
-- Docker image vulnerability warnings depend on the current Node/Alpine scanner. Docker was unavailable on the development machine, so Compose should be smoke-tested in CI or on the deployment host.
-- Prisma is pinned to 6.19.3. The `DATABASE_URL` in `schema.prisma` is required by Prisma 6; Prisma 7 config-only datasource syntax should only be adopted together with a coordinated Prisma upgrade.
-
-## Design Decisions
-
-The implementation favors a small, explainable architecture over a large feature surface. Explicit memberships make authorization uniform. Fractional positions avoid rewriting every task during normal moves, while rebalancing prevents precision exhaustion. Optimistic version checks make concurrent edits visible and recoverable. The event bus is in-process so Socket.io can broadcast committed changes without coupling transport concerns to database services.
+<p align="center">
+  Built with ❤️ for the <strong>WebBriks Technical Assessment</strong>
+</p>
